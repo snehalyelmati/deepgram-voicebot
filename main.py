@@ -30,16 +30,23 @@ def speech_to_text():
         try:
             # Transcribe to text using Deepgram
             # TODO: try out speaker diarization
-            data = asyncio.run(deepgram_stt(save_path))
+            verbatim, summaries = asyncio.run(deepgram_stt(save_path))
 
             # pass it to NLU
+
+            return jsonify(
+                {
+                    'verbatim': verbatim,
+                    'summaries': summaries
+                }
+            )
 
         except Exception as e:
             exception_type, exception_object, exception_traceback = sys.exc_info()
             line_number = exception_traceback.tb_lineno
             print(f'line {line_number}: {exception_type} - {e}')
 
-        return jsonify({'result': data})
+        return jsonify({'result': 'Something wrong with Deepgram API'})
 
 
 async def deepgram_stt(FILE: str):
@@ -65,13 +72,16 @@ async def deepgram_stt(FILE: str):
                 'punctuate': True,
                 'model': 'nova',
                 'diarize': True,
+                'summarize': True,
             }
         )
     )
 
     print(
         f'Speech to text based on audio input: {json.dumps(response, indent=4)}')
-    return response["results"]["channels"][0]["alternatives"][0]["transcript"]
+    # return response["results"]["channels"][0]["alternatives"][0]["transcript"]
+    return response["results"]["channels"][0]["alternatives"][0]["transcript"], \
+        response["results"]["channels"][0]["alternatives"][0]["summaries"]
 
 
 # driver function
