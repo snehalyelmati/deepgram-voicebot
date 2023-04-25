@@ -1,1 +1,2 @@
+deepgram-sdk
 flask
