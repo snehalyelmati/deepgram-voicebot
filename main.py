@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 import sys
 
@@ -27,7 +28,12 @@ def speech_to_text():
         request.files['audio_file'].save(save_path)
 
         try:
+            # Transcribe to text using Deepgram
+            # TODO: try out speaker diarization
             data = asyncio.run(deepgram_stt(save_path))
+
+            # pass it to NLU
+
         except Exception as e:
             exception_type, exception_object, exception_traceback = sys.exc_info()
             line_number = exception_traceback.tb_lineno
@@ -58,11 +64,13 @@ async def deepgram_stt(FILE: str):
             {
                 'punctuate': True,
                 'model': 'nova',
+                'diarize': True,
             }
         )
     )
 
-    # print(json.dumps(response["results"]["channels"][0]["alternatives"][0]["transcript"], indent=4))
+    print(
+        f'Speech to text based on audio input: {json.dumps(response, indent=4)}')
     return response["results"]["channels"][0]["alternatives"][0]["transcript"]
 
 
