@@ -23,7 +23,7 @@ def speech_to_text():
         data = "This is a place holder for output from Deepgram"
         conv_id = request.form["conversation_id"]
         dirname = "./audio_files/"
-        save_path = os.path.join(dirname, conv_id + ".wav")
+        save_path = os.path.join(dirname, conv_id + ".mp3")
         request.files['audio_file'].save(save_path)
 
         try:
@@ -37,7 +37,7 @@ def speech_to_text():
 
 
 async def deepgram_stt(FILE: str):
-    # FILE = './audio_files/convo.mp3'
+    # FILE = './audio_files/6min.mp3'
 
     MIMETYPE = 'audio/mp3'
 
@@ -68,4 +68,4 @@ async def deepgram_stt(FILE: str):
 
 # driver function
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(port=5999, debug=True)
