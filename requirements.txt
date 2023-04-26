@@ -1,2 +1,4 @@
 deepgram-sdk
 flask
+transformers
+sentencepiece
