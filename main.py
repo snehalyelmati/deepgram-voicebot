@@ -10,7 +10,7 @@ from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM, BloomTok
 # Creating a Flask app
 app = Flask(__name__)
 
-os.environ["PYTORCH_MPS_HIGH_WATERMARK_RATIO"]="0.0"
+# os.environ["PYTORCH_MPS_HIGH_WATERMARK_RATIO"]="0.0"
 
 
 # To check the if the API is up
@@ -96,8 +96,8 @@ def llm_intialize():
 
         # path = "bigscience/bloomz-560m"
         # path = "bigscience/bloomz-1b7"
-        # path = "bigscience/bloomz-3b"
-        path = "bigscience/bloomz-7b1"
+        path = "bigscience/bloomz-3b"
+        # path = "bigscience/bloomz-7b1"
 
         device = "mps"
 
@@ -108,6 +108,24 @@ def llm_intialize():
         print(f'Loading model finished...')
 
         return jsonify({'result': 'success'})
+
+
+@app.route('/llm_save', methods=['POST'])
+def llm_save():
+    if request.method == 'POST':
+        print(f'Saving model started...')
+        save_path = "/Users/snehalyelmati/Documents/models/"
+        model_name = request.form["model_name"]
+        tokenizer = BloomTokenizerFast.from_pretrained(model_name)
+        model = BloomForCausalLM.from_pretrained(model_name)
+
+        print(f'Save path: {save_path+model_name}')
+        model.save_pretrained(save_path+model_name)
+        tokenizer.save_pretrained(save_path+model_name)
+        print(f'Saving model finished...')
+
+        return jsonify({'result': 'success'})
+
 
 
 # TODO: add proper loggers
