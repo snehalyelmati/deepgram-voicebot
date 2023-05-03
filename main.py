@@ -5,14 +5,14 @@ import sys
 
 from deepgram import Deepgram
 from flask import Flask, jsonify, request
-from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM, BloomTokenizerFast, BloomForCausalLM
+from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM, AutoModelForSeq2SeqLM, BloomTokenizerFast, \
+    BloomForCausalLM
 
 # Creating a Flask app
 app = Flask(__name__)
 
 
 # os.environ["PYTORCH_MPS_HIGH_WATERMARK_RATIO"]="0.0"
-
 
 # To check the if the API is up
 @app.route('/healthcheck', methods=['GET'])
@@ -33,7 +33,6 @@ def speech_to_text():
 
         try:
             # Transcribe to text using Deepgram
-            # TODO: try out speaker diarization
             response = asyncio.run(deepgram_stt(save_path))
             verbatim, summaries = response["results"]["channels"][0]["alternatives"][0]["transcript"], \
                 response["results"]["channels"][0]["alternatives"][0]["summaries"]
@@ -101,13 +100,10 @@ def fraud_detection():
             response = asyncio.run(deepgram_stt(save_path))
             print(f'Speech to text based on audio input: {json.dumps(response, indent=4)}')
 
-            transcript = []
+            # Build transcript object using the speech to text response
             idx = 0
-
-            temp = {
-                'speaker': 0,
-                'utterance': "",
-            }
+            transcript = []
+            temp = {'speaker': 0, 'utterance': "", 'fraudulent': False}
             transcript.append(temp)
 
             words = response["results"]["channels"][0]["alternatives"][0]["words"]
@@ -116,18 +112,33 @@ def fraud_detection():
                     continue
 
                 if words[i - 1]["speaker"] == words[i]["speaker"]:
-                    print(transcript)
+                    # print(transcript)
                     transcript[idx]["utterance"] += words[i]["punctuated_word"] + " "
                 else:
                     idx += 1
                     temp = {
                         'speaker': words[i]["speaker"],
                         'utterance': words[i]["punctuated_word"] + " ",
+                        'fraudulent': False
                     }
                     transcript.append(temp)
 
+            # Pass the response through LLM
+            # TODO: use llm()
+            for i in range(len(transcript)):
+                #             input = f'''This is a segment of conversation between a financial consultant and his client,
+                # Conversation: "{transcript[i]['utterance']}"
+                # Question: Is the above conversation potentially fraudulent? If it is return "yes" or else return "no".
+                # Answer:
+                #             '''
+                llm_output = llm(transcript[i]['utterance'])
+
+                if llm_output == "yes":
+                    transcript[i]['fraudulent'] = True
+                    transcript[i]['llm_output'] = llm_output
+
             return jsonify({
-                # 'response': response,
+                'response': response,
                 'transcript': transcript,
             })
         except Exception as e:
@@ -139,7 +150,7 @@ def fraud_detection():
 
 
 @app.route('/llm_initialize', methods=['GET'])
-def llm_intialize():
+def llm_initialize():
     if request.method == 'GET':
         global tokenizer
         global model
@@ -147,14 +158,26 @@ def llm_intialize():
 
         # path = "bigscience/bloomz-560m"
         # path = "bigscience/bloomz-1b7"
-        path = "bigscience/bloomz-3b"
+        # path = "bigscience/bloomz-3b"
         # path = "bigscience/bloomz-7b1"
+
+        # path = "declare-lab/flan-alpaca-large"
+        # path = "declare-lab/flan-gpt4all-xl"
+
+        # path = "lmsys/vicuna-13b-delta-v1.1"
+        path = "lmsys/vicuna-7b-delta-v1.1"
 
         device = "mps"
 
         print(f'Loading model started from path: {path}')
-        tokenizer = BloomTokenizerFast.from_pretrained(path)
-        model = BloomForCausalLM.from_pretrained(path)
+
+        if "bloom" in path:
+            tokenizer = BloomTokenizerFast.from_pretrained(path)
+            model = BloomForCausalLM.from_pretrained(path)
+        else:
+            tokenizer = AutoTokenizer.from_pretrained(path)
+            model = AutoModelForSeq2SeqLM.from_pretrained(path)
+
         model.to(device)
         print(f'Loading model finished...')
 
@@ -178,24 +201,40 @@ def llm_save():
         return jsonify({'result': 'success'})
 
 
-# TODO: add proper loggers
-def llm(input: str):
+def llm(input: str, is_full_prompt="False"):
+    print("LLM prediction started...")
     # generator = pipeline("text2text-generation", model, tokenizer, device=device)
     # print(f'Pipeline output: {generator(input, max_length=150, num_return_sequences=1)}')
 
-    # inputs = tokenizer('''
-    #     Advice from a financial adviser: "Invest in company XYZ, the returns would triple in an year."
+    if is_full_prompt == "True":
+        inputs = tokenizer(input, return_tensors="pt")["input_ids"].to(device)
+    else:
+        advice = input
+        # advice = "Invest in company XYZ, the returns would surely triple in a year."
+        inputs = tokenizer(
+            f'''Assume you are a financial adviser who flags fraudulent advices. Your
+task is to review the advice, delimited by <>, given by another
+financial advisor to their client.
 
-    #     Based on this advice, answer the below question,
-    #     Question: Is the advice fradulent? If yes, return "yes", else return "no"
+Question: Is the advice given by the financial adviser fraudulent?
 
-    #     Answer: ''', return_tensors="pt")["input_ids"].to(device)
+Format your output as a valid JSON object with the following keys,
+
+1. "Reasoning" - reasoning for the question above.
+2. "Final answer" - final answer whether the advice is fraudulent. “Yes” if the advice is fraudulent, “No” if it is not fraudulent.
+
+Do not include any additional information apart from the information that is requested above.
+
+Advice: {advice}> 
+Output:
+'''
+            , return_tensors="pt")["input_ids"].to(device)
 
     # inputs = tokenizer('A cat in French is "', return_tensors="pt")["input_ids"].to(device)
-    inputs = tokenizer(input, return_tensors="pt")["input_ids"].to(device)
-    outputs = model.generate(inputs, max_new_tokens=3)
-    decoded_output = tokenizer.decode(outputs[0])
-    print(f'Decoded output: {decoded_output}')
+    outputs = model.generate(inputs, max_length=1000)
+    decoded_output = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    print(decoded_output)
+    print(f'LLM prediction finished!')
     return decoded_output
 
 
@@ -203,7 +242,8 @@ def llm(input: str):
 def llm_predict():
     if request.method == 'POST':
         data = request.form["utterance"]
-        result = llm(str(data))
+        is_full_prompt = request.form["is_full_prompt"]
+        result = llm(str(data), is_full_prompt)
         return jsonify({'result': result})
 
 
