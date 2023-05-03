@@ -162,10 +162,10 @@ def llm_initialize():
         # path = "bigscience/bloomz-7b1"
 
         # path = "declare-lab/flan-alpaca-large"
-        # path = "declare-lab/flan-gpt4all-xl"
+        path = "declare-lab/flan-gpt4all-xl"
 
         # path = "lmsys/vicuna-13b-delta-v1.1"
-        path = "lmsys/vicuna-7b-delta-v1.1"
+        # path = "AlekseyKorshuk/vicuna-7b"
 
         device = "mps"
 
@@ -174,6 +174,9 @@ def llm_initialize():
         if "bloom" in path:
             tokenizer = BloomTokenizerFast.from_pretrained(path)
             model = BloomForCausalLM.from_pretrained(path)
+        elif "vicuna" in path:
+            tokenizer = AutoTokenizer.from_pretrained(path)
+            model = AutoModelForCausalLM.from_pretrained(path)
         else:
             tokenizer = AutoTokenizer.from_pretrained(path)
             model = AutoModelForSeq2SeqLM.from_pretrained(path)
